@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutGrid, LifeBuoy, CalendarOff, CalendarDays, Users, Inbox, SlidersHorizontal, Menu, X, HandHelping, CalendarClock } from "lucide-react";
 import { useGetDashboardSummary, useListMyNotifications, useListMyOffers, getGetDashboardSummaryQueryKey, getListMyOffersQueryKey, getListMyNotificationsQueryKey, type CurrentUser } from "@workspace/api-client-react";
-import { AccountFooter } from "@/components/account";
+import { AccountFooter } from "@/modules/accounts";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutGrid; count?: number; hot?: boolean };
@@ -36,7 +36,7 @@ function Shell({ nav, user, children }: { nav: NavItem[]; user: CurrentUser; chi
           </Link>
         ))}
       </nav>
-      <AccountFooter name={user.name} sub={user.access === "manager" ? "Manager" : user.roleName ?? "Staff"} />
+      <AccountFooter user={user} sub={user.access === "manager" ? "Manager" : user.roleName ?? "Staff"} />
     </aside>
   );
   return (

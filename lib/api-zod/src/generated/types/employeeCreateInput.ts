@@ -6,14 +6,15 @@
  *
  * OpenAPI spec version: 2.0.0
  */
-import type { Access } from './access';
 
+/**
+ * New accounts are always staff.
+ */
 export interface EmployeeCreateInput {
   name: string;
   email: string;
   /** @nullable */
   phone?: string | null;
-  access?: Access;
   /** @nullable */
   roleId?: number | null;
   /** @nullable */

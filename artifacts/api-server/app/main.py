@@ -1,4 +1,6 @@
-"""The web server. Run with: python -m uvicorn app.main:app --port 8080"""
+"""The web server. Run with: python -m uvicorn app.main:app --port 8080
+
+Each feature lives in app/modules/<name>/ and brings its own routes (see app/modules/__init__.py)."""
 
 import logging
 
@@ -7,16 +9,24 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from .errors import AppError
-from .routers import auth, cover, me, people, scheduling, setup
+from app.core.errors import AppError
+from app.core.schema import HealthStatus
+from app.modules import routers
 
 log = logging.getLogger("api")
 
 app = FastAPI(title="Leave Cover Scheduler API", version="2.0.0", docs_url="/api/docs",
               openapi_url="/api/openapi.json")
 
-for module in (auth, me, setup, people, scheduling, cover):
-    app.include_router(module.router, prefix="/api")
+
+
+@app.get("/api/healthz", response_model=HealthStatus, tags=["health"])
+def health():
+    return {"status": "ok"}
+
+
+for router in routers():
+    app.include_router(router, prefix="/api")
 
 
 @app.exception_handler(AppError)

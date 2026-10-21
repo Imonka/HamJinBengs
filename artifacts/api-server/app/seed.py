@@ -1,6 +1,6 @@
 """Demo data for "Kopi Lane — Mid Valley". Dates are relative to today, so the demo always looks live.
 
-Manager: farah@kopilane.my / PIN 1234. Everyone else: <firstname>@kopilane.my / PIN 1111.
+Manager: farah@mamarich.my / PIN 1234. Everyone else: <firstname>@mamarich.my / PIN 1111.
 """
 
 from datetime import time, timedelta
@@ -8,13 +8,18 @@ from datetime import time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import schemas
-from .db import Base, engine
-from .models import BranchSettings, CoverageCase, Employee, PatternRequirement, Role, Shift, ShiftPattern
-from .services import coverage, leave, roster
-from .services.employees import add_employee
-from .services.settings import get_rules
-from .timeutil import local_today, now_utc
+from app.core.db import Base, engine
+from app.core.timeutil import local_today, now_utc
+from app.modules.cover import schemas as cover_schemas
+from app.modules.cover import service as coverage
+from app.modules.cover.models import CoverageCase
+from app.modules.leave import schemas as leave_schemas
+from app.modules.leave import service as leave
+from app.modules.people.models import Employee, Role
+from app.modules.people.service import add_employee
+from app.modules.scheduling import roster
+from app.modules.scheduling.models import BranchSettings, PatternRequirement, Shift, ShiftPattern
+from app.modules.scheduling.rules import get_rules
 
 ROLES = [("Cashier", "#b45309"), ("Server", "#0f766e"), ("Chef", "#7c3aed")]
 
@@ -53,8 +58,9 @@ PATTERNS = [
 
 
 def reset_database() -> None:
-    from . import models  # noqa: F401
+    from app.modules import load_models
 
+    load_models()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
@@ -69,7 +75,7 @@ def _future_shifts(db: Session, employee: Employee, limit: int = 3) -> list[Shif
 
 def _leave_for(db: Session, who: Employee, shift: Shift, kind: str, reason: str, days: int = 1,
                status: str = "approved") -> list[CoverageCase]:
-    result = leave.create_leave(db, schemas.LeaveInput(
+    result = leave.create_leave(db, leave_schemas.LeaveInput(
         employee_id=who.id, leave_type=kind, start_date=shift.date,
         end_date=shift.date + timedelta(days=days - 1), status=status, reason=reason))
     return [db.get(CoverageCase, c.id) for c in result.coverage_cases]
@@ -83,7 +89,7 @@ def _offer(db: Session, case: CoverageCase, manager: Employee, n: int, prefer: E
         eligible.insert(0, prefer.id)
     chosen = eligible[:n]
     if chosen:
-        coverage.send_offers(db, case.id, schemas.SendOffersInput(employee_ids=chosen, message=message), manager)
+        coverage.send_offers(db, case.id, cover_schemas.SendOffersInput(employee_ids=chosen, message=message), manager)
     return [db.get(Employee, i) for i in chosen]
 
 
@@ -107,11 +113,11 @@ def seed(db: Session) -> None:
             PatternRequirement(role_id=roles[r].id, headcount=n) for r, n in needs.items()]))
     db.commit()
 
-    manager = add_employee(db, name="Farah Zulkifli", email="farah@kopilane.my", pin="1234", access="manager",
+    manager = add_employee(db, name="Farah Zulkifli", email="farah@mamarich.my", pin="1234", access="manager",
                            phone="+60 12-345 6789")
     people = {}
     for name, user, role, limit in STAFF:
-        people[user] = add_employee(db, name=name, email=f"{user}@kopilane.my", pin="1111", role_name=role,
+        people[user] = add_employee(db, name=name, email=f"{user}@mamarich.my", pin="1111", role_name=role,
                                     max_hours_per_week=limit, orbyte_id=f"KL-{len(people) + 101:04d}")
 
     # Roster: this week (including days already past, for history) and next week.

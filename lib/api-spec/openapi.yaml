@@ -98,6 +98,28 @@ paths:
           description: PIN changed
         "400":
           $ref: "#/components/responses/Error"
+  /auth/profile:
+    put:
+      operationId: updateMyProfile
+      tags: [auth]
+      description: The signed-in person changes their own name, email and phone. Changing the email needs the current PIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
 
   # ---------------------------------------------------------------- me (employee self-service)
   /me/shifts:
@@ -434,6 +456,7 @@ paths:
     put:
       operationId: updateEmployee
       tags: [employees]
+      description: Work settings only. Personal details, PIN and access can't be changed by a manager.
       parameters:
         - $ref: "#/components/parameters/EmployeeId"
       requestBody:
@@ -449,6 +472,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Employee"
+        "400":
+          $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
     delete:
@@ -460,23 +485,6 @@ paths:
       responses:
         "204":
           description: Deactivated
-  /employees/{employeeId}/pin:
-    put:
-      operationId: resetEmployeePin
-      tags: [employees]
-      parameters:
-        - $ref: "#/components/parameters/EmployeeId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResetPinInput"
-      responses:
-        "204":
-          description: PIN reset
-        "400":
-          $ref: "#/components/responses/Error"
 
   # ---------------------------------------------------------------- shifts
   /shifts:
@@ -656,6 +664,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LeaveImportResult"
+  /leave/{leaveId}/cover-preview:
+    get:
+      operationId: getLeaveCoverPreview
+      tags: [leave]
+      description: For pending leave, the shifts it would leave empty and who could cover each. Changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/LeaveId"
+      responses:
+        "200":
+          description: Cover preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveCoverPreview"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /leave/{leaveId}/approve:
     post:
       operationId: approveLeave
@@ -692,12 +718,19 @@ paths:
     get:
       operationId: listCoverage
       tags: [coverage]
+      description: Earliest shift first.
       parameters:
         - name: status
           in: query
           required: false
           schema:
             $ref: "#/components/schemas/CoverageStatus"
+        - name: unfilled
+          in: query
+          required: false
+          description: Only open and offered cases, as one queue
+          schema:
+            type: boolean
       responses:
         "200":
           description: Cover cases
@@ -951,7 +984,7 @@ components:
           $ref: "#/components/schemas/CurrentUser"
     CurrentUser:
       type: object
-      required: [id, name, email, access, roleId, roleName]
+      required: [id, name, email, phone, access, roleId, roleName]
       properties:
         id:
           type: integer
@@ -959,6 +992,8 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: [string, "null"]
         access:
           $ref: "#/components/schemas/Access"
         roleId:
@@ -973,12 +1008,20 @@ components:
           type: string
         newPin:
           type: string
-    ResetPinInput:
+    ProfileInput:
       type: object
-      required: [pin]
+      additionalProperties: false
+      required: [name, email]
       properties:
-        pin:
+        name:
           type: string
+        email:
+          type: string
+        phone:
+          type: [string, "null"]
+        currentPin:
+          type: [string, "null"]
+          description: Required when changing the email
 
     # ---------- settings
     Settings:
@@ -1217,6 +1260,8 @@ components:
           format: date-time
     EmployeeCreateInput:
       type: object
+      additionalProperties: false
+      description: New accounts are always staff.
       required: [name, email, pin]
       properties:
         name:
@@ -1225,8 +1270,6 @@ components:
           type: string
         phone:
           type: [string, "null"]
-        access:
-          $ref: "#/components/schemas/Access"
         roleId:
           type: [integer, "null"]
         maxHoursPerWeek:
@@ -1238,16 +1281,10 @@ components:
           description: 4-8 digits
     EmployeeUpdateInput:
       type: object
-      required: [name, email]
+      additionalProperties: false
+      description: Work settings a manager may change.
+      required: [roleId, active, maxHoursPerWeek, orbyteId]
       properties:
-        name:
-          type: string
-        email:
-          type: string
-        phone:
-          type: [string, "null"]
-        access:
-          $ref: "#/components/schemas/Access"
         roleId:
           type: [integer, "null"]
         active:
@@ -1258,6 +1295,7 @@ components:
           type: [string, "null"]
     EmployeeImportRow:
       type: object
+      additionalProperties: false
       required: [name, email, pin]
       properties:
         name:
@@ -1268,8 +1306,6 @@ components:
           type: [string, "null"]
         roleName:
           type: [string, "null"]
-        access:
-          $ref: "#/components/schemas/Access"
         maxHoursPerWeek:
           type: [number, "null"]
         orbyteId:
@@ -1862,6 +1898,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UnavailableCandidate"
+    CoverPreviewShift:
+      type: object
+      required: [shift, eligibleCount, unavailableCount, topCandidates]
+      properties:
+        shift:
+          $ref: "#/components/schemas/Shift"
+        eligibleCount:
+          type: integer
+        unavailableCount:
+          type: integer
+        topCandidates:
+          type: array
+          description: Best matches first (up to 3)
+          items:
+            $ref: "#/components/schemas/Candidate"
+    LeaveCoverPreview:
+      type: object
+      required: [leaveId, shifts]
+      properties:
+        leaveId:
+          type: integer
+        shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverPreviewShift"
     SendOffersInput:
       type: object
       required: [employeeIds]

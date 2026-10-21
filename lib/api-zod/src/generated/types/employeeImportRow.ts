@@ -6,7 +6,6 @@
  *
  * OpenAPI spec version: 2.0.0
  */
-import type { Access } from './access';
 
 export interface EmployeeImportRow {
   name: string;
@@ -15,7 +14,6 @@ export interface EmployeeImportRow {
   phone?: string | null;
   /** @nullable */
   roleName?: string | null;
-  access?: Access;
   /** @nullable */
   maxHoursPerWeek?: number | null;
   /** @nullable */

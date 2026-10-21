@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, time, timedelta
 
-from app.scheduling import (
+from app.modules.scheduling.engine import (
     Booking,
     CheckContext,
     LeaveBlock,
@@ -14,8 +14,8 @@ from app.scheduling import (
     generate_week,
     rank_candidates,
 )
-from app.scheduling.constraints import COVER
-from app.timeutil import at
+from app.modules.scheduling.engine.constraints import COVER
+from app.core.timeutil import at
 
 RULES = Rules()
 TZ = RULES.tz

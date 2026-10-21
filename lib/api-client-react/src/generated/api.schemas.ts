@@ -36,6 +36,8 @@ export interface CurrentUser {
   id: number;
   name: string;
   email: string;
+  /** @nullable */
+  phone: string | null;
   access: Access;
   /** @nullable */
   roleId: number | null;
@@ -53,8 +55,16 @@ export interface ChangePinInput {
   newPin: string;
 }
 
-export interface ResetPinInput {
-  pin: string;
+export interface ProfileInput {
+  name: string;
+  email: string;
+  /** @nullable */
+  phone?: string | null;
+  /**
+     * Required when changing the email
+     * @nullable
+     */
+  currentPin?: string | null;
 }
 
 export type SettingsLeaveSource = typeof SettingsLeaveSource[keyof typeof SettingsLeaveSource];
@@ -181,12 +191,14 @@ export interface Employee {
   createdAt: string;
 }
 
+/**
+ * New accounts are always staff.
+ */
 export interface EmployeeCreateInput {
   name: string;
   email: string;
   /** @nullable */
   phone?: string | null;
-  access?: Access;
   /** @nullable */
   roleId?: number | null;
   /** @nullable */
@@ -197,19 +209,17 @@ export interface EmployeeCreateInput {
   pin: string;
 }
 
+/**
+ * Work settings a manager may change.
+ */
 export interface EmployeeUpdateInput {
-  name: string;
-  email: string;
   /** @nullable */
-  phone?: string | null;
-  access?: Access;
+  roleId: number | null;
+  active: boolean;
   /** @nullable */
-  roleId?: number | null;
-  active?: boolean;
+  maxHoursPerWeek: number | null;
   /** @nullable */
-  maxHoursPerWeek?: number | null;
-  /** @nullable */
-  orbyteId?: string | null;
+  orbyteId: string | null;
 }
 
 export interface EmployeeImportRow {
@@ -219,7 +229,6 @@ export interface EmployeeImportRow {
   phone?: string | null;
   /** @nullable */
   roleName?: string | null;
-  access?: Access;
   /** @nullable */
   maxHoursPerWeek?: number | null;
   /** @nullable */
@@ -579,6 +588,19 @@ export interface CandidateList {
   unavailable: UnavailableCandidate[];
 }
 
+export interface CoverPreviewShift {
+  shift: Shift;
+  eligibleCount: number;
+  unavailableCount: number;
+  /** Best matches first (up to 3) */
+  topCandidates: Candidate[];
+}
+
+export interface LeaveCoverPreview {
+  leaveId: number;
+  shifts: CoverPreviewShift[];
+}
+
 export interface SendOffersInput {
   employeeIds: number[];
   /** @nullable */
@@ -716,5 +738,9 @@ employeeId?: number;
 
 export type ListCoverageParams = {
 status?: CoverageStatus;
+/**
+ * Only open and offered cases, as one queue
+ */
+unfilled?: boolean;
 };
 

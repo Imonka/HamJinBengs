@@ -6,8 +6,8 @@ from conftest import login
 def test_health_and_auth(client, manager):
     assert client.get("/api/healthz").json() == {"status": "ok"}
     assert client.get("/api/dashboard/summary").status_code == 401
-    assert client.post("/api/auth/login", json={"email": "farah@kopilane.my", "pin": "0000"}).status_code == 401
-    staff = login(client, "aisyah@kopilane.my", "1111")
+    assert client.post("/api/auth/login", json={"email": "farah@mamarich.my", "pin": "0000"}).status_code == 401
+    staff = login(client, "aisyah@mamarich.my", "1111")
     assert client.get("/api/employees", headers=staff).status_code == 403
     assert client.get("/api/auth/me", headers=staff).json()["access"] == "staff"
 
@@ -95,7 +95,7 @@ def test_manual_shift_rule_violation_and_override(client, manager):
 def test_add_employee_and_generate(client, manager):
     role = client.post("/api/roles", headers=manager, json={"name": "Runner"}).json()
     r = client.post("/api/employees", headers=manager,
-                    json={"name": "Test Runner", "email": "runner@kopilane.my", "pin": "4321", "roleId": role["id"]})
+                    json={"name": "Test Runner", "email": "runner@mamarich.my", "pin": "4321", "roleId": role["id"]})
     assert r.status_code == 201
     client.post("/api/shift-patterns", headers=manager, json={
         "name": "Runner", "startTime": "10:00", "endTime": "14:00", "days": [0, 1, 2, 3, 4, 5, 6],

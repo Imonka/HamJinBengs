@@ -12,6 +12,8 @@ export interface CurrentUser {
   id: number;
   name: string;
   email: string;
+  /** @nullable */
+  phone: string | null;
   access: Access;
   /** @nullable */
   roleId: number | null;

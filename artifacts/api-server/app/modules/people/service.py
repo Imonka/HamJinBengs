@@ -1,0 +1,221 @@
+"""People: the employee directory. `add_employee()` is the one function every route (form, CSV import, CLI, seed) uses
+to create a person, so validation lives in one place."""
+
+import re
+
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from app.core import activity
+from app.core.errors import AppError, BadRequest, Conflict, NotFound
+from app.core.schema import RowError
+from app.modules.accounts.service import end_all_sessions, hash_pin
+from app.modules.cover.service import reopen_cases_without_offers, withdraw_pending_offers_for
+from app.modules.leave.service import on_leave_today
+from app.modules.people import schemas
+from app.modules.people.models import Employee, Role
+from app.modules.people.roles import find_role_by_name
+from app.modules.scheduling.shifts import hours_this_week, remove_future_shifts
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+# ------------------------------------------------------------------ reading
+def employee_out(e: Employee, hours: float, on_leave: bool) -> schemas.Employee:
+    return schemas.Employee(
+        id=e.id, name=e.name, email=e.email, phone=e.phone, access=e.access,  # type: ignore[arg-type]
+        role_id=e.role_id, role_name=e.role.name if e.role else None, active=e.active,
+        max_hours_per_week=e.max_hours_per_week, orbyte_id=e.orbyte_id,
+        on_leave_today=on_leave, hours_this_week=hours, created_at=e.created_at,
+    )
+
+
+def to_out(db: Session, e: Employee) -> schemas.Employee:
+    return employee_out(e, hours_this_week(db, [e.id]).get(e.id, 0), e.id in on_leave_today(db))
+
+
+def list_employees(db: Session, role_id: int | None, active: bool | None, search: str | None) -> list[schemas.Employee]:
+    q = select(Employee)
+    if role_id is not None:
+        q = q.where(Employee.role_id == role_id)
+    if active is not None:
+        q = q.where(Employee.active.is_(active))
+    if search:
+        like = f"%{search.strip()}%"
+        q = q.where(or_(Employee.name.ilike(like), Employee.email.ilike(like)))
+    rows = db.scalars(q.order_by(Employee.name)).all()
+    hours, leave = hours_this_week(db), on_leave_today(db)
+    return [employee_out(e, hours.get(e.id, 0), e.id in leave) for e in rows]
+
+
+def get_employee(db: Session, employee_id: int) -> Employee:
+    e = db.get(Employee, employee_id)
+    if e is None:
+        raise NotFound("Employee not found.")
+    return e
+
+
+# ------------------------------------------------------------------ validation helpers
+def clean_email(db: Session, email: str, current_id: int | None = None) -> str:
+    email = (email or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise BadRequest(f'"{email}" is not a valid email address.')
+    other = db.scalar(select(Employee).where(Employee.email == email))
+    if other is not None and other.id != current_id:
+        raise Conflict(f"{email} is already used by {other.name}.")
+    return email
+
+
+def _clean_orbyte_id(db: Session, orbyte_id: str | None, current_id: int | None = None) -> str | None:
+    orbyte_id = (orbyte_id or "").strip() or None
+    if orbyte_id:
+        other = db.scalar(select(Employee).where(Employee.orbyte_id == orbyte_id))
+        if other is not None and other.id != current_id:
+            raise Conflict(f"Orbyte ID {orbyte_id} is already used by {other.name}.")
+    return orbyte_id
+
+
+def _clean_limit(value: float | None) -> float | None:
+    if value is not None and not 0 < value <= 168:
+        raise BadRequest("Personal weekly limit must be between 0 and 168 hours.")
+    return value
+
+
+def _resolve_role(db: Session, role_id: int | None, role_name: str | None) -> int | None:
+    if role_id is not None:
+        if db.get(Role, role_id) is None:
+            raise BadRequest(f"Unknown role id {role_id}.")
+        return role_id
+    if role_name and role_name.strip():
+        role = find_role_by_name(db, role_name)
+        if role is None:
+            raise BadRequest(f'Unknown role "{role_name}". Add it under Setup → Roles first.')
+        return role.id
+    return None
+
+
+# ------------------------------------------------------------------ writing
+def add_employee(
+    db: Session,
+    *,
+    name: str,
+    email: str,
+    pin: str,
+    role_id: int | None = None,
+    role_name: str | None = None,
+    access: str = "staff",
+    phone: str | None = None,
+    max_hours_per_week: float | None = None,
+    orbyte_id: str | None = None,
+    commit: bool = True,
+) -> Employee:
+    """Create one employee. Used by the Team page, CSV import, the CLI and the demo seed."""
+    if not (name or "").strip():
+        raise BadRequest("Name is required.")
+    if access not in ("manager", "staff"):
+        raise BadRequest('Access must be "manager" or "staff".')
+    e = Employee(
+        name=name.strip(),
+        email=clean_email(db, email),
+        phone=(phone or "").strip() or None,
+        access=access,
+        role_id=_resolve_role(db, role_id, role_name),
+        max_hours_per_week=_clean_limit(max_hours_per_week),
+        orbyte_id=_clean_orbyte_id(db, orbyte_id),
+        pin_hash=hash_pin(pin),
+        active=True,
+    )
+    db.add(e)
+    db.flush()
+    activity.log(db, "employee_added", f"Added {e.name}" + (f" ({e.role.name})" if e.role else ""))
+    if commit:
+        db.commit()
+    return e
+
+
+def create_employee(db: Session, data: schemas.EmployeeCreateInput) -> schemas.Employee:
+    e = add_employee(db, name=data.name, email=data.email, pin=data.pin, role_id=data.role_id,
+                     access="staff", phone=data.phone, max_hours_per_week=data.max_hours_per_week,
+                     orbyte_id=data.orbyte_id)
+    return to_out(db, e)
+
+
+def import_employees(db: Session, rows: list[schemas.EmployeeImportRow]) -> schemas.EmployeeImportResult:
+    """Bulk add. Everyone imported is staff; grant manager access with `python -m app.cli set-access`."""
+    created, errors = 0, []
+    for i, r in enumerate(rows, start=1):
+        savepoint = db.begin_nested()
+        try:
+            add_employee(db, name=r.name, email=r.email, pin=r.pin, role_name=r.role_name, access="staff",
+                         phone=r.phone, max_hours_per_week=r.max_hours_per_week, orbyte_id=r.orbyte_id,
+                         commit=False)
+            savepoint.commit()
+            created += 1
+        except AppError as exc:
+            savepoint.rollback()
+            errors.append(RowError(row=i, message=exc.message))
+    db.commit()
+    return schemas.EmployeeImportResult(created=created, errors=errors)
+
+
+def active_manager_count(db: Session) -> int:
+    return db.scalar(
+        select(func.count()).select_from(Employee).where(Employee.access == "manager", Employee.active.is_(True))
+    ) or 0
+
+
+def update_employee(db: Session, employee_id: int, data: schemas.EmployeeUpdateInput) -> schemas.Employee:
+    """A manager changing someone's work settings. Personal details, PIN and access are not here
+    on purpose: people change their own details (accounts module), and access is CLI-only."""
+    e = get_employee(db, employee_id)
+    if data.active is False and e.access == "manager" and e.active and active_manager_count(db) <= 1:
+        raise Conflict("This is the only manager. Make someone else a manager first.")
+
+    if data.role_id != e.role_id:
+        e.role_id = _resolve_role(db, data.role_id, None)
+    e.max_hours_per_week = _clean_limit(data.max_hours_per_week)
+    e.orbyte_id = _clean_orbyte_id(db, data.orbyte_id, e.id)
+    if data.active is False and e.active:
+        _deactivate(db, e)
+    elif data.active is True and not e.active:
+        e.active = True
+        activity.log(db, "employee_reactivated", f"Reactivated {e.name}")
+    db.commit()
+    if data.active is False:
+        reopen_cases_without_offers(db)
+        db.commit()
+    db.refresh(e)
+    return to_out(db, e)
+
+
+def _deactivate(db: Session, e: Employee) -> int:
+    """Mark inactive, remove their future rostered shifts (unless tied to a cover case),
+    withdraw any pending cover offers and sign them out everywhere."""
+    e.active = False
+    removed = remove_future_shifts(db, e.id)
+    withdraw_pending_offers_for(db, e.id)
+    end_all_sessions(db, e.id)
+    activity.log(db, "employee_deactivated", f"Deactivated {e.name}; removed {removed} future shift(s)")
+    return removed
+
+
+def deactivate_employee(db: Session, employee_id: int, actor: Employee) -> None:
+    e = get_employee(db, employee_id)
+    if not e.active:
+        return
+    if e.id == actor.id:
+        raise Conflict("You can't deactivate your own account.")
+    if e.access == "manager" and active_manager_count(db) <= 1:
+        raise Conflict("This is the only manager. Make someone else a manager first.")
+    _deactivate(db, e)
+    db.commit()
+    # cases left with no pending offers go back to "open"
+    reopen_cases_without_offers(db)
+    db.commit()
+
+
+def find_by_email(db: Session, email: str) -> Employee:
+    e = db.scalar(select(Employee).where(Employee.email == (email or "").strip().lower()))
+    if e is None:
+        raise NotFound(f"No employee with email {email}.")
+    return e

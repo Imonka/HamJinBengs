@@ -40,6 +40,7 @@ import type {
   GetRosterWeekParams,
   HealthStatus,
   Leave,
+  LeaveCoverPreview,
   LeaveImportInput,
   LeaveImportResult,
   LeaveInput,
@@ -54,7 +55,7 @@ import type {
   LoginResult,
   MyOffer,
   Notification,
-  ResetPinInput,
+  ProfileInput,
   Role,
   RoleInput,
   RosterWeek,
@@ -467,6 +468,91 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getChangeMyPinMutationOptions(options));
+    }
+
+export const getUpdateMyProfileUrl = () => {
+
+
+
+
+  return `/api/auth/profile`
+}
+
+/**
+ * The signed-in person changes their own name, email and phone. Changing the email needs the current PIN.
+ */
+export const updateMyProfile = async (profileInput: ProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<CurrentUser> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CurrentUser>(getUpdateMyProfileUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(profileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMyProfileMutationKey = () => ['updateMyProfile'] as const;
+
+export const getUpdateMyProfileMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,UpdateMyProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,UpdateMyProfileMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMyProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyProfile>>, UpdateMyProfileMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMyProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMyProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyProfile>>>
+    export type UpdateMyProfileMutationBody = BodyType<ProfileInput>
+    export type UpdateMyProfileMutationError = ErrorType<ErrorResponse>
+    export type UpdateMyProfileMutationVariables = {data: BodyType<ProfileInput>}
+
+    export const useUpdateMyProfile = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,UpdateMyProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMyProfile>>,
+        TError,
+        UpdateMyProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMyProfileMutationOptions(options));
     }
 
 export const getListMyShiftsUrl = (params?: ListMyShiftsParams,) => {
@@ -1997,6 +2083,9 @@ export const getUpdateEmployeeUrl = (employeeId: number,) => {
   return `/api/employees/${employeeId}`
 }
 
+/**
+ * Work settings only. Personal details, PIN and access can't be changed by a manager.
+ */
 export const updateEmployee = async (employeeId: number,
     employeeUpdateInput: EmployeeUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<Employee> => {
 
@@ -2141,89 +2230,6 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeactivateEmployeeMutationOptions(options));
-    }
-
-export const getResetEmployeePinUrl = (employeeId: number,) => {
-
-
-
-
-  return `/api/employees/${employeeId}/pin`
-}
-
-export const resetEmployeePin = async (employeeId: number,
-    resetPinInput: ResetPinInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<void>(getResetEmployeePinUrl(employeeId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(resetPinInput)
-  }
-);}
-
-
-
-
-
-export const getResetEmployeePinMutationKey = () => ['resetEmployeePin'] as const;
-
-export const getResetEmployeePinMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetEmployeePin>>, TError,ResetEmployeePinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof resetEmployeePin>>, TError,ResetEmployeePinMutationVariables, TContext> => {
-
-const mutationKey = getResetEmployeePinMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetEmployeePin>>, ResetEmployeePinMutationVariables> = (props) => {
-          const {employeeId,data} = props ?? {};
-
-          return  resetEmployeePin(employeeId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ResetEmployeePinMutationResult = NonNullable<Awaited<ReturnType<typeof resetEmployeePin>>>
-    export type ResetEmployeePinMutationBody = BodyType<ResetPinInput>
-    export type ResetEmployeePinMutationError = ErrorType<ErrorResponse>
-    export type ResetEmployeePinMutationVariables = {employeeId: number;data: BodyType<ResetPinInput>}
-
-    export const useResetEmployeePin = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetEmployeePin>>, TError,ResetEmployeePinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof resetEmployeePin>>,
-        TError,
-        ResetEmployeePinMutationVariables,
-        TContext
-      > => {
-      return useMutation(getResetEmployeePinMutationOptions(options));
     }
 
 export const getListShiftsUrl = (params?: ListShiftsParams,) => {
@@ -2939,6 +2945,80 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getImportLeaveMutationOptions(options));
     }
 
+export const getGetLeaveCoverPreviewUrl = (leaveId: number,) => {
+
+
+
+
+  return `/api/leave/${leaveId}/cover-preview`
+}
+
+/**
+ * For pending leave, the shifts it would leave empty and who could cover each. Changes nothing.
+ */
+export const getLeaveCoverPreview = async (leaveId: number, options?: Parameters<typeof customFetch>[1]): Promise<LeaveCoverPreview> => {
+
+  return customFetch<LeaveCoverPreview>(getGetLeaveCoverPreviewUrl(leaveId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLeaveCoverPreviewQueryKey = (leaveId: number,) => {
+    return [
+    `/api/leave/${leaveId}/cover-preview`
+    ] as const;
+    }
+
+
+export const getGetLeaveCoverPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getLeaveCoverPreview>>, TError = ErrorType<ErrorResponse>>(leaveId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaveCoverPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLeaveCoverPreviewQueryKey(leaveId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaveCoverPreview>>> = ({ signal }) => getLeaveCoverPreview(leaveId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leaveId !== null && leaveId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLeaveCoverPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLeaveCoverPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getLeaveCoverPreview>>>
+export type GetLeaveCoverPreviewQueryError = ErrorType<ErrorResponse>
+
+
+
+export function useGetLeaveCoverPreview<TData = Awaited<ReturnType<typeof getLeaveCoverPreview>>, TError = ErrorType<ErrorResponse>>(
+ leaveId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaveCoverPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLeaveCoverPreviewQueryOptions(leaveId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getApproveLeaveUrl = (leaveId: number,) => {
 
 
@@ -3090,6 +3170,9 @@ export const getListCoverageUrl = (params?: ListCoverageParams,) => {
   return stringifiedParams.length > 0 ? `/api/coverage?${stringifiedParams}` : `/api/coverage`
 }
 
+/**
+ * Earliest shift first.
+ */
 export const listCoverage = async (params?: ListCoverageParams, options?: Parameters<typeof customFetch>[1]): Promise<CoverageCase[]> => {
 
   return customFetch<CoverageCase[]>(getListCoverageUrl(params),

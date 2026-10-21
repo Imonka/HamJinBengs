@@ -10,4 +10,8 @@ import type { CoverageStatus } from './coverageStatus';
 
 export type ListCoverageParams = {
 status?: CoverageStatus;
+/**
+ * Only open and offered cases, as one queue
+ */
+unfilled?: boolean;
 };

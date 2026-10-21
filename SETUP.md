@@ -56,7 +56,7 @@ python -m app.cli seed        # OPTIONAL: demo data. WARNING: wipes all tables f
 ```
 
 The demo data ("Kopi Lane — Mid Valley", 20 staff) uses dates relative to today, so it always looks current.
-Demo sign-ins: manager `farah@kopilane.my` / PIN `1234`; staff `<firstname>@kopilane.my` / PIN `1111` (e.g. `aisyah@kopilane.my`).
+Demo sign-ins: manager `farah@mamarich.my` / PIN `1234`; staff `<firstname>@mamarich.my` / PIN `1111` (e.g. `aisyah@mamarich.my`).
 
 To start clean instead: run `init-db` only, then create the first manager:
 
@@ -119,24 +119,46 @@ Run from `artifacts/api-server`:
 | `python -m app.cli generate --week 2026-11-02 [--replace]` | Build the roster for the week containing that date |
 | `python -m pytest -q` | Run the tests (rule engine + API). API tests use a separate `cover_test` schema and don't touch your data |
 
-## 7. How the back end is organised
+## 7. How the code is organised
+
+The app is split into feature modules. The server and the screens use the same module names.
+
+| Module | What it owns | Server (`artifacts/api-server/app/modules/`) | Screens (`artifacts/cover-scheduler/src/modules/`) |
+| --- | --- | --- | --- |
+| accounts | Sign-in, sessions, PINs, "Me" panel, CLI access/PIN tools | `accounts/` | `accounts/` (login, account footer) |
+| people | Staff directory and job roles. Orbyte will own this later (`people/sources.py`) | `people/` | `people/` (Team, person page, Roles tab) |
+| scheduling | Branch rules, shift patterns, shifts, weekly roster, the rule engine | `scheduling/` (engine in `scheduling/engine/`) | `scheduling/` (Schedule, My shifts, Patterns and Rules tabs) |
+| leave | Leave requests, Orbyte CSV import/live source, approval, "Check cover" | `leave/` | `leave/` |
+| cover | Cover cases, candidate ranking, offers and replies | `cover/` | `cover/` (cover queue, case page, staff offers) |
+| notifications | In-app inbox and the email outbox | `notifications/` | `notifications/` (Outbox, staff inbox) |
+| dashboard / desk | The manager's Desk | `dashboard/` | `desk/` |
+| setup (screens only) | One page that shows tabs owned by scheduling and people | – | `setup/` |
+
+Each server module has the same files: `models.py` (tables), `schemas.py` (request/response
+shapes), `service.py` or several service files (logic) and `router.py` (endpoints). Each screen
+module has an `index.ts`; other modules import only from that.
 
 ```
 artifacts/api-server/app/
-  config.py        environment settings
-  models/          database tables (people, roster, cover)
-  schemas/         request/response shapes (match lib/api-spec/openapi.yaml)
-  scheduling/      THE RULE ENGINE (pure Python, no database)
-    constraints/   hard.py = rules that block, soft.py = rules that only warn/lower the score
-                   __init__.py = DEFAULT_CONSTRAINTS list + "how to add a rule"
-    generator.py   builds a week's roster from shift patterns
-    ranking.py     scores replacement candidates
-  services/        business actions (roster, leave, coverage, employees, ...)
-    staffing.py    the ONE place that loads people + their hours/leave/shifts into the engine
-    leave_sources.py  Orbyte plug-in point
-  routers/         the HTTP endpoints
+  core/            shared plumbing: config, db, errors, time helpers, activity log, schema base
+  modules/         the feature modules above (modules/__init__.py lists them and loads their routes)
+  main.py          the web server
   seed.py, cli.py  demo data and command-line tools
+
+artifacts/cover-scheduler/src/
+  modules/         the feature modules above
+  components/      shared UI (ui/ = base components, kit, layout, error boundary)
+  lib/, hooks/     shared helpers
 ```
+
+Two things to know:
+
+- The rule engine (`scheduling/engine/`) is pure Python with no database access.
+  `scheduling/staffing.py` is the one place that loads people and their hours, leave and
+  shifts into it.
+- Modules can call each other's service functions. People does not query other modules'
+  tables directly: it asks scheduling for hours, leave for "on leave today", and scheduling
+  and cover to clean up when someone is deactivated. That keeps people replaceable by Orbyte.
 
 ## 8. Making changes
 
@@ -145,13 +167,14 @@ artifacts/api-server/app/
 | Change opening hours, 8h/day, 40h/week, max days, rest gap | Setup → Rules & branch in the app (stored in `branch_settings`). No code change |
 | Change how many people each shift needs | Setup → Shift patterns |
 | Give one person a lower weekly limit | Team → edit the person → weekly hour limit |
-| **Add a new scheduling rule** (e.g. "never works Sundays") | Follow the 3 steps at the top of `app/scheduling/constraints/__init__.py`. The roster generator, cover suggestions, accepting offers and manual shift checks all pick it up automatically |
-| Change how replacement candidates are scored | `app/scheduling/ranking.py` and penalty values in `constraints/soft.py` |
-| Change notification wording | `app/services/coverage.py` and `app/services/notifications.py` |
-| Actually send email/WhatsApp | `app/services/notifications.py` (`notify` writes the queued message; add a sender there) |
-| Connect Orbyte live | Implement `OrbyteLeaveSource` in `app/services/leave_sources.py` and pass its records to `ingest_leave_records` (same path as the CSV import) |
-| Add a database column/table | Add it in `app/models/`. `init-db` only creates missing tables; for changes to existing tables, run an `ALTER TABLE` (or add Alembic) |
-| Add/change an endpoint | Update `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`, add the route in `app/routers/` |
+| **Add a new scheduling rule** (e.g. "never works Sundays") | Follow the 3 steps at the top of `app/modules/scheduling/engine/constraints/__init__.py`. The roster generator, cover suggestions, accepting offers and manual shift checks all pick it up automatically |
+| Change how replacement candidates are scored | `app/modules/scheduling/engine/ranking.py` and penalty values in `constraints/soft.py` |
+| Change notification wording | `app/modules/cover/service.py` and `app/modules/notifications/service.py` |
+| Actually send email/WhatsApp | `app/modules/notifications/service.py` (`notify` writes the queued message; add a sender there) |
+| Connect Orbyte live | Implement `OrbyteLeaveSource` in `app/modules/leave/sources.py` and pass its records to `ingest_leave_records` (same path as the CSV import) |
+| Add a database column/table | Add it in the owning module's `models.py`. `init-db` only creates missing tables; for changes to existing tables, run an `ALTER TABLE` (or add Alembic) |
+| Add/change an endpoint | Update `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`, add the route in the owning module's `router.py` |
+| Connect the Orbyte staff directory | Follow the steps at the top of `app/modules/people/sources.py` |
 | Check web app types | `pnpm run typecheck` |
 
 ## 9. Main API endpoints (all under `/api`)

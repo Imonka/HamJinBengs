@@ -25,6 +25,7 @@ export const LoginResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullable(),
   "access": zod.enum(['manager', 'staff']),
   "roleId": zod.number().int().nullable(),
   "roleName": zod.string().nullable()
@@ -39,6 +40,7 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullable(),
   "access": zod.enum(['manager', 'staff']),
   "roleId": zod.number().int().nullable(),
   "roleName": zod.string().nullable()
@@ -51,6 +53,27 @@ export const ChangeMyPinBody = zod.object({
 })
 
 export const ChangeMyPinResponse = zod.void()
+
+
+/**
+ * The signed-in person changes their own name, email and phone. Changing the email needs the current PIN.
+ */
+export const UpdateMyProfileBody = zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "currentPin": zod.string().nullish().describe('Required when changing the email')
+})
+
+export const UpdateMyProfileResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "access": zod.enum(['manager', 'staff']),
+  "roleId": zod.number().int().nullable(),
+  "roleName": zod.string().nullable()
+})
 
 
 export const ListMyShiftsQueryParams = zod.object({
@@ -425,12 +448,11 @@ export const CreateEmployeeBody = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "phone": zod.string().nullish(),
-  "access": zod.enum(['manager', 'staff']).optional(),
   "roleId": zod.number().int().nullish(),
   "maxHoursPerWeek": zod.number().nullish(),
   "orbyteId": zod.string().nullish(),
   "pin": zod.string().describe('4-8 digits')
-})
+}).describe('New accounts are always staff.')
 
 export const CreateEmployeeResponse = zod.object({
   "id": zod.number().int(),
@@ -455,7 +477,6 @@ export const ImportEmployeesBody = zod.object({
   "email": zod.string(),
   "phone": zod.string().nullish(),
   "roleName": zod.string().nullish(),
-  "access": zod.enum(['manager', 'staff']).optional(),
   "maxHoursPerWeek": zod.number().nullish(),
   "orbyteId": zod.string().nullish(),
   "pin": zod.string()
@@ -529,20 +550,19 @@ export const GetEmployeeResponse = zod.object({
 })
 
 
+/**
+ * Work settings only. Personal details, PIN and access can't be changed by a manager.
+ */
 export const UpdateEmployeeParams = zod.object({
   "employeeId": zod.coerce.number().int()
 })
 
 export const UpdateEmployeeBody = zod.object({
-  "name": zod.string(),
-  "email": zod.string(),
-  "phone": zod.string().nullish(),
-  "access": zod.enum(['manager', 'staff']).optional(),
-  "roleId": zod.number().int().nullish(),
-  "active": zod.boolean().optional(),
-  "maxHoursPerWeek": zod.number().nullish(),
-  "orbyteId": zod.string().nullish()
-})
+  "roleId": zod.number().int().nullable(),
+  "active": zod.boolean(),
+  "maxHoursPerWeek": zod.number().nullable(),
+  "orbyteId": zod.string().nullable()
+}).describe('Work settings a manager may change.')
 
 export const UpdateEmployeeResponse = zod.object({
   "id": zod.number().int(),
@@ -569,17 +589,6 @@ export const DeactivateEmployeeParams = zod.object({
 })
 
 export const DeactivateEmployeeResponse = zod.void()
-
-
-export const ResetEmployeePinParams = zod.object({
-  "employeeId": zod.coerce.number().int()
-})
-
-export const ResetEmployeePinBody = zod.object({
-  "pin": zod.string()
-})
-
-export const ResetEmployeePinResponse = zod.void()
 
 
 export const ListShiftsQueryParams = zod.object({
@@ -915,6 +924,65 @@ export const ImportLeaveResponse = zod.object({
 })
 
 
+/**
+ * For pending leave, the shifts it would leave empty and who could cover each. Changes nothing.
+ */
+export const GetLeaveCoverPreviewParams = zod.object({
+  "leaveId": zod.coerce.number().int()
+})
+
+export const GetLeaveCoverPreviewResponse = zod.object({
+  "leaveId": zod.number().int(),
+  "shifts": zod.array(zod.object({
+  "shift": zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "startTime": zod.string().describe('HH:MM branch-local'),
+  "endTime": zod.string().describe('HH:MM branch-local'),
+  "hours": zod.number(),
+  "roleId": zod.number().int(),
+  "roleName": zod.string(),
+  "employeeId": zod.number().int().nullable(),
+  "employeeName": zod.string().nullable(),
+  "patternId": zod.number().int().nullable(),
+  "patternName": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'needs_cover', 'covered', 'cancelled']).describe('scheduled = person is working it; needs_cover = person is on leave and nobody has taken it yet; covered = person is on leave and someone else took it (see the replacement shift); cancelled.\n'),
+  "source": zod.enum(['generated', 'manual', 'cover']),
+  "coverCaseId": zod.number().int().nullable().describe('Open/filled cover case for this shift, or the case this shift fills'),
+  "notes": zod.string().nullable()
+}),
+  "eligibleCount": zod.number().int(),
+  "unavailableCount": zod.number().int(),
+  "topCandidates": zod.array(zod.object({
+  "employee": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "roleId": zod.number().int().nullable(),
+  "roleName": zod.string().nullable()
+}),
+  "score": zod.number().int().describe('0-100, higher is a better fit'),
+  "hoursWorkedSoFar": zod.number().describe('Hours already worked this week (shifts that have ended)'),
+  "hoursThisWeek": zod.number().describe('All hours this week including future assigned shifts'),
+  "hoursAfter": zod.number().describe('hoursThisWeek plus this shift'),
+  "maxHoursPerWeek": zod.number(),
+  "hoursThatDay": zod.number().describe('Hours already on the roster that day'),
+  "maxHoursPerDay": zod.number(),
+  "daysThisWeek": zod.number().int(),
+  "maxDaysPerWeek": zod.number().int(),
+  "backToBack": zod.boolean(),
+  "restHoursBefore": zod.number().nullable(),
+  "restHoursAfter": zod.number().nullable(),
+  "reasons": zod.array(zod.string()),
+  "warnings": zod.array(zod.string()),
+  "offerStatus": zod.union([zod.enum(['pending', 'accepted', 'declined', 'withdrawn', 'expired']).describe('pending = waiting for reply; accepted = got the shift; declined; withdrawn = manager took it back; expired = someone else accepted first or the person is no longer eligible.\n'),zod.null()])
+})).describe('Best matches first (up to 3)')
+}))
+})
+
+
 export const ApproveLeaveParams = zod.object({
   "leaveId": zod.coerce.number().int()
 })
@@ -1025,8 +1093,12 @@ export const RejectLeaveResponse = zod.object({
 })
 
 
+/**
+ * Earliest shift first.
+ */
 export const ListCoverageQueryParams = zod.object({
-  "status": zod.enum(['open', 'offered', 'filled', 'cancelled']).optional()
+  "status": zod.enum(['open', 'offered', 'filled', 'cancelled']).optional(),
+  "unfilled": zod.coerce.boolean().optional().describe('Only open and offered cases, as one queue')
 })
 
 export const ListCoverageResponseItem = zod.object({

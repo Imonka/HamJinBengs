@@ -25,7 +25,7 @@ os.environ["DATABASE_URL"] = _with_search_path(_base_url)
 def client():
     from fastapi.testclient import TestClient
 
-    from app.db import SessionLocal
+    from app.core.db import SessionLocal
     from app.main import app
     from app.seed import reset_database, seed
 
@@ -35,7 +35,7 @@ def client():
     with TestClient(app) as c:
         yield c
 
-    from app.db import engine
+    from app.core.db import engine
 
     engine.dispose()
     with psycopg.connect(_base_url, autocommit=True) as conn:
@@ -50,4 +50,4 @@ def login(client, email: str, pin: str) -> dict:
 
 @pytest.fixture(scope="session")
 def manager(client):
-    return login(client, "farah@kopilane.my", "1234")
+    return login(client, "farah@mamarich.my", "1234")

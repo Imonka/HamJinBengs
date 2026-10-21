@@ -6,19 +6,16 @@
  *
  * OpenAPI spec version: 2.0.0
  */
-import type { Access } from './access';
 
+/**
+ * Work settings a manager may change.
+ */
 export interface EmployeeUpdateInput {
-  name: string;
-  email: string;
   /** @nullable */
-  phone?: string | null;
-  access?: Access;
+  roleId: number | null;
+  active: boolean;
   /** @nullable */
-  roleId?: number | null;
-  active?: boolean;
+  maxHoursPerWeek: number | null;
   /** @nullable */
-  maxHoursPerWeek?: number | null;
-  /** @nullable */
-  orbyteId?: string | null;
+  orbyteId: string | null;
 }

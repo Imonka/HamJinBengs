@@ -4,7 +4,9 @@
   python -m app.cli seed                          WIPE everything and load the demo data
   python -m app.cli add-employee --name "Ali" --email ali@x.my --pin 1111 --role Server [--access manager]
                                  [--max-hours 24] [--orbyte-id KL-0200] [--phone "+60..."]
-  python -m app.cli import-employees staff.csv    columns: name,email,pin,role,access,max_hours,orbyte_id,phone
+  python -m app.cli import-employees staff.csv    columns: name,email,pin,role,max_hours,orbyte_id,phone (all staff)
+  python -m app.cli set-access --email ali@x.my --access manager    grant/remove manager access
+  python -m app.cli reset-pin --email ali@x.my --pin 2468           forgotten PIN recovery
   python -m app.cli generate --week 2026-10-26 [--replace]
 """
 
@@ -13,8 +15,9 @@ import csv
 import sys
 from datetime import date
 
-from .db import SessionLocal, create_tables
-from .errors import AppError
+from app.core.db import create_tables, SessionLocal
+from app.core.errors import AppError
+from app.modules.people import schemas as people_schemas
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,6 +36,14 @@ def main(argv: list[str] | None = None) -> int:
     add.add_argument("--orbyte-id")
     add.add_argument("--phone")
 
+    acc = sub.add_parser("set-access")
+    acc.add_argument("--email", required=True)
+    acc.add_argument("--access", required=True, choices=["staff", "manager"])
+
+    pin = sub.add_parser("reset-pin")
+    pin.add_argument("--email", required=True)
+    pin.add_argument("--pin", required=True)
+
     imp = sub.add_parser("import-employees")
     imp.add_argument("csv_file")
 
@@ -48,15 +59,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "seed":
-        from .seed import reset_database, seed
+        from app.seed import reset_database, seed
 
         reset_database()
         with SessionLocal() as db:
             seed(db)
-        print("Demo data loaded. Manager: farah@kopilane.my / 1234. Staff: aisyah@kopilane.my / 1111.")
+        print("Demo data loaded. Manager: farah@mamarich.my / 1234. Staff: aisyah@mamarich.my / 1111.")
         return 0
 
-    from .services.employees import add_employee, import_employees
+    from app.modules.accounts.service import reset_pin, set_access
+    from app.modules.people.service import add_employee, import_employees
 
     with SessionLocal() as db:
         try:
@@ -65,14 +77,18 @@ def main(argv: list[str] | None = None) -> int:
                                  access=args.access, max_hours_per_week=args.max_hours,
                                  orbyte_id=args.orbyte_id, phone=args.phone)
                 print(f"Added {e.name} (id {e.id}).")
+            elif args.cmd == "set-access":
+                e = set_access(db, args.email, args.access)
+                print(f"{e.name} now has {e.access} access.")
+            elif args.cmd == "reset-pin":
+                e = reset_pin(db, args.email, args.pin)
+                print(f"PIN reset for {e.name}. They have been signed out everywhere.")
             elif args.cmd == "import-employees":
-                from . import schemas
-
                 with open(args.csv_file, newline="", encoding="utf-8-sig") as f:
                     rows = [
-                        schemas.EmployeeImportRow(
+                        people_schemas.EmployeeImportRow(
                             name=r.get("name", ""), email=r.get("email", ""), pin=r.get("pin", ""),
-                            role_name=r.get("role") or None, access=(r.get("access") or "staff").strip().lower(),
+                            role_name=r.get("role") or None,
                             max_hours_per_week=float(r["max_hours"]) if r.get("max_hours") else None,
                             orbyte_id=r.get("orbyte_id") or None, phone=r.get("phone") or None,
                         )
@@ -83,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                 for err in result.errors:
                     print(f"  row {err.row}: {err.message}", file=sys.stderr)
             elif args.cmd == "generate":
-                from .services.roster import generate
+                from app.modules.scheduling.roster import generate
 
                 result = generate(db, args.week, args.replace)
                 print(f"Week of {result.week_start}: {result.created} shift(s) added, {result.removed} replaced.")

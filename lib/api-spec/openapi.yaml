@@ -1,0 +1,2023 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 2.0.0
+  description: >
+    Leave Cover Scheduler API (Python / FastAPI). Single-branch roster generation
+    with adjustable working-time rules, leave-triggered cover cases, and cover
+    offers that employees accept or decline. All times are branch-local
+    (Asia/Kuala_Lumpur by default).
+servers:
+  - url: /api
+tags:
+  - name: health
+  - name: auth
+  - name: me
+  - name: settings
+  - name: roles
+  - name: patterns
+  - name: employees
+  - name: shifts
+  - name: roster
+  - name: leave
+  - name: coverage
+  - name: notifications
+  - name: dashboard
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ---------------------------------------------------------------- auth
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      responses:
+        "204":
+          description: Signed out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      responses:
+        "200":
+          description: The signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Error"
+  /auth/pin:
+    put:
+      operationId: changeMyPin
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePinInput"
+      responses:
+        "204":
+          description: PIN changed
+        "400":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- me (employee self-service)
+  /me/shifts:
+    get:
+      operationId: listMyShifts
+      tags: [me]
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+      responses:
+        "200":
+          description: The signed-in user's shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+  /me/offers:
+    get:
+      operationId: listMyOffers
+      tags: [me]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/OfferStatus"
+      responses:
+        "200":
+          description: Cover offers sent to the signed-in user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyOffer"
+  /me/offers/{offerId}/accept:
+    post:
+      operationId: acceptOffer
+      tags: [me]
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Accepted, the shift is now yours
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyOffer"
+        "409":
+          $ref: "#/components/responses/Error"
+  /me/offers/{offerId}/decline:
+    post:
+      operationId: declineOffer
+      tags: [me]
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeclineOfferInput"
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyOffer"
+        "409":
+          $ref: "#/components/responses/Error"
+  /me/notifications:
+    get:
+      operationId: listMyNotifications
+      tags: [me]
+      responses:
+        "200":
+          description: In-app notifications for the signed-in user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /me/notifications/read-all:
+    post:
+      operationId: markAllMyNotificationsRead
+      tags: [me]
+      responses:
+        "204":
+          description: Marked as read
+
+  # ---------------------------------------------------------------- settings (rules)
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      responses:
+        "200":
+          description: Branch settings and working-time rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- roles
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      responses:
+        "200":
+          description: Job roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+    post:
+      operationId: createRole
+      tags: [roles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "409":
+          $ref: "#/components/responses/Error"
+  /roles/{roleId}:
+    put:
+      operationId: updateRole
+      tags: [roles]
+      parameters:
+        - $ref: "#/components/parameters/RoleId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteRole
+      tags: [roles]
+      parameters:
+        - $ref: "#/components/parameters/RoleId"
+      responses:
+        "204":
+          description: Deleted
+        "409":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- shift patterns
+  /shift-patterns:
+    get:
+      operationId: listShiftPatterns
+      tags: [patterns]
+      responses:
+        "200":
+          description: Shift patterns with headcount per role
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShiftPattern"
+    post:
+      operationId: createShiftPattern
+      tags: [patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftPatternInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShiftPattern"
+        "400":
+          $ref: "#/components/responses/Error"
+  /shift-patterns/{patternId}:
+    put:
+      operationId: updateShiftPattern
+      tags: [patterns]
+      parameters:
+        - $ref: "#/components/parameters/PatternId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftPatternInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShiftPattern"
+        "400":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteShiftPattern
+      tags: [patterns]
+      parameters:
+        - $ref: "#/components/parameters/PatternId"
+      responses:
+        "204":
+          description: Deleted
+
+  # ---------------------------------------------------------------- employees
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      parameters:
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: active
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeCreateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /employees/import:
+    post:
+      operationId: importEmployees
+      tags: [employees]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeImportResult"
+  /employees/{employeeId}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      responses:
+        "200":
+          description: Employee with upcoming shifts and leave
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetail"
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: updateEmployee
+      tags: [employees]
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "409":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deactivateEmployee
+      tags: [employees]
+      description: Deactivates the employee and removes their future rostered shifts.
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      responses:
+        "204":
+          description: Deactivated
+  /employees/{employeeId}/pin:
+    put:
+      operationId: resetEmployeePin
+      tags: [employees]
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPinInput"
+      responses:
+        "204":
+          description: PIN reset
+        "400":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- shifts
+  /shifts:
+    get:
+      operationId: listShifts
+      tags: [shifts]
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ShiftStatus"
+      responses:
+        "200":
+          description: Shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+    post:
+      operationId: createShift
+      tags: [shifts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+        "409":
+          $ref: "#/components/responses/RuleViolation"
+  /shifts/{shiftId}:
+    put:
+      operationId: updateShift
+      tags: [shifts]
+      parameters:
+        - $ref: "#/components/parameters/ShiftId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShiftInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+        "409":
+          $ref: "#/components/responses/RuleViolation"
+    delete:
+      operationId: deleteShift
+      tags: [shifts]
+      parameters:
+        - $ref: "#/components/parameters/ShiftId"
+      responses:
+        "204":
+          description: Deleted
+
+  # ---------------------------------------------------------------- roster
+  /roster/week:
+    get:
+      operationId: getRosterWeek
+      tags: [roster]
+      parameters:
+        - name: start
+          in: query
+          required: true
+          description: Any date in the week (YYYY-MM-DD); snapped to the week start.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Week view of required vs assigned staff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterWeek"
+  /roster/generate:
+    post:
+      operationId: generateRoster
+      tags: [roster]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRosterInput"
+      responses:
+        "200":
+          description: Generation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateRosterResult"
+
+  # ---------------------------------------------------------------- leave
+  /leave:
+    get:
+      operationId: listLeave
+      tags: [leave]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/LeaveStatus"
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Leave"
+    post:
+      operationId: createLeave
+      tags: [leave]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveInput"
+      responses:
+        "201":
+          description: Created (cover cases opened when approved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveResult"
+        "400":
+          $ref: "#/components/responses/Error"
+  /leave/import:
+    post:
+      operationId: importLeave
+      tags: [leave]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveImportResult"
+  /leave/{leaveId}/approve:
+    post:
+      operationId: approveLeave
+      tags: [leave]
+      parameters:
+        - $ref: "#/components/parameters/LeaveId"
+      responses:
+        "200":
+          description: Approved; cover cases opened for affected shifts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveResult"
+        "409":
+          $ref: "#/components/responses/Error"
+  /leave/{leaveId}/reject:
+    post:
+      operationId: rejectLeave
+      tags: [leave]
+      parameters:
+        - $ref: "#/components/parameters/LeaveId"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Leave"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- coverage
+  /coverage:
+    get:
+      operationId: listCoverage
+      tags: [coverage]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/CoverageStatus"
+      responses:
+        "200":
+          description: Cover cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageCase"
+  /coverage/{caseId}:
+    get:
+      operationId: getCoverage
+      tags: [coverage]
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Cover case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageCase"
+        "404":
+          $ref: "#/components/responses/Error"
+  /coverage/{caseId}/candidates:
+    get:
+      operationId: getCoverageCandidates
+      tags: [coverage]
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Ranked replacements and the people ruled out (with reasons)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateList"
+  /coverage/{caseId}/offers:
+    post:
+      operationId: sendCoverOffers
+      tags: [coverage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOffersInput"
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Offers sent; the first person to accept gets the shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageCase"
+        "409":
+          $ref: "#/components/responses/Error"
+  /coverage/{caseId}/offers/{offerId}/withdraw:
+    post:
+      operationId: withdrawCoverOffer
+      tags: [coverage]
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Offer withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageCase"
+        "409":
+          $ref: "#/components/responses/Error"
+  /coverage/{caseId}/cancel:
+    post:
+      operationId: cancelCoverage
+      tags: [coverage]
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Case cancelled (shift left unstaffed, pending offers withdrawn)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageCase"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- notifications / dashboard
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      responses:
+        "200":
+          description: All notifications (manager outbox)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Headline numbers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /dashboard/activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Activity"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    FromDate:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+    ToDate:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+    RoleId:
+      name: roleId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PatternId:
+      name: patternId
+      in: path
+      required: true
+      schema:
+        type: integer
+    EmployeeId:
+      name: employeeId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ShiftId:
+      name: shiftId
+      in: path
+      required: true
+      schema:
+        type: integer
+    LeaveId:
+      name: leaveId
+      in: path
+      required: true
+      schema:
+        type: integer
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: integer
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RuleViolation:
+      description: The change breaks one or more scheduling rules
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RuleViolationResponse"
+
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    RuleViolationResponse:
+      type: object
+      required: [error, violations]
+      properties:
+        error:
+          type: string
+        violations:
+          type: array
+          items:
+            type: string
+
+    # ---------- auth
+    Access:
+      type: string
+      enum: [manager, staff]
+    LoginInput:
+      type: object
+      required: [email, pin]
+      properties:
+        email:
+          type: string
+        pin:
+          type: string
+    LoginResult:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/CurrentUser"
+    CurrentUser:
+      type: object
+      required: [id, name, email, access, roleId, roleName]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        access:
+          $ref: "#/components/schemas/Access"
+        roleId:
+          type: [integer, "null"]
+        roleName:
+          type: [string, "null"]
+    ChangePinInput:
+      type: object
+      required: [currentPin, newPin]
+      properties:
+        currentPin:
+          type: string
+        newPin:
+          type: string
+    ResetPinInput:
+      type: object
+      required: [pin]
+      properties:
+        pin:
+          type: string
+
+    # ---------- settings
+    Settings:
+      type: object
+      required:
+        - branchName
+        - timezone
+        - openTime
+        - closeTime
+        - maxHoursPerDay
+        - maxHoursPerWeek
+        - maxDaysPerWeek
+        - minRestHours
+        - operatingDays
+        - weekStartsOn
+        - orbyteConnected
+        - leaveSource
+      properties:
+        branchName:
+          type: string
+        timezone:
+          type: string
+          description: IANA timezone, e.g. Asia/Kuala_Lumpur
+        openTime:
+          type: string
+          description: HH:MM, earliest a shift may start
+        closeTime:
+          type: string
+          description: HH:MM, latest a shift may end
+        maxHoursPerDay:
+          type: number
+        maxHoursPerWeek:
+          type: number
+        maxDaysPerWeek:
+          type: integer
+          description: Most days one person may work in a week
+        minRestHours:
+          type: number
+          description: Rest gap below this counts as back-to-back
+        operatingDays:
+          type: array
+          description: Days the branch opens, 0 = Monday ... 6 = Sunday
+          items:
+            type: integer
+        weekStartsOn:
+          type: integer
+          description: 0 = Monday ... 6 = Sunday
+        orbyteConnected:
+          type: boolean
+        leaveSource:
+          type: string
+          enum: [manual, import, orbyte]
+    SettingsInput:
+      type: object
+      required:
+        - branchName
+        - openTime
+        - closeTime
+        - maxHoursPerDay
+        - maxHoursPerWeek
+        - maxDaysPerWeek
+        - minRestHours
+        - operatingDays
+        - weekStartsOn
+      properties:
+        branchName:
+          type: string
+        openTime:
+          type: string
+        closeTime:
+          type: string
+        maxHoursPerDay:
+          type: number
+        maxHoursPerWeek:
+          type: number
+        maxDaysPerWeek:
+          type: integer
+        minRestHours:
+          type: number
+        operatingDays:
+          type: array
+          items:
+            type: integer
+        weekStartsOn:
+          type: integer
+
+    # ---------- roles
+    Role:
+      type: object
+      required: [id, name, color, employeeCount]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+          description: Hex colour used on the roster
+        employeeCount:
+          type: integer
+    RoleInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+
+    # ---------- shift patterns
+    PatternRequirement:
+      type: object
+      required: [roleId, roleName, headcount]
+      properties:
+        roleId:
+          type: integer
+        roleName:
+          type: string
+        headcount:
+          type: integer
+    PatternRequirementInput:
+      type: object
+      required: [roleId, headcount]
+      properties:
+        roleId:
+          type: integer
+        headcount:
+          type: integer
+    ShiftPattern:
+      type: object
+      required: [id, name, startTime, endTime, hours, days, active, requirements]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        startTime:
+          type: string
+          description: HH:MM
+        endTime:
+          type: string
+          description: HH:MM
+        hours:
+          type: number
+        days:
+          type: array
+          description: Days this pattern runs, 0 = Monday ... 6 = Sunday
+          items:
+            type: integer
+        active:
+          type: boolean
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PatternRequirement"
+    ShiftPatternInput:
+      type: object
+      required: [name, startTime, endTime, days, requirements]
+      properties:
+        name:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        days:
+          type: array
+          items:
+            type: integer
+        active:
+          type: boolean
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PatternRequirementInput"
+
+    # ---------- employees
+    EmployeeRef:
+      type: object
+      required: [id, name, email, roleId, roleName]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        roleId:
+          type: [integer, "null"]
+        roleName:
+          type: [string, "null"]
+    Employee:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - phone
+        - access
+        - roleId
+        - roleName
+        - active
+        - maxHoursPerWeek
+        - orbyteId
+        - onLeaveToday
+        - hoursThisWeek
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: [string, "null"]
+        access:
+          $ref: "#/components/schemas/Access"
+        roleId:
+          type: [integer, "null"]
+        roleName:
+          type: [string, "null"]
+        active:
+          type: boolean
+        maxHoursPerWeek:
+          type: [number, "null"]
+          description: Personal weekly limit; null means the branch rule applies
+        orbyteId:
+          type: [string, "null"]
+        onLeaveToday:
+          type: boolean
+        hoursThisWeek:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+    EmployeeCreateInput:
+      type: object
+      required: [name, email, pin]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: [string, "null"]
+        access:
+          $ref: "#/components/schemas/Access"
+        roleId:
+          type: [integer, "null"]
+        maxHoursPerWeek:
+          type: [number, "null"]
+        orbyteId:
+          type: [string, "null"]
+        pin:
+          type: string
+          description: 4-8 digits
+    EmployeeUpdateInput:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: [string, "null"]
+        access:
+          $ref: "#/components/schemas/Access"
+        roleId:
+          type: [integer, "null"]
+        active:
+          type: boolean
+        maxHoursPerWeek:
+          type: [number, "null"]
+        orbyteId:
+          type: [string, "null"]
+    EmployeeImportRow:
+      type: object
+      required: [name, email, pin]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: [string, "null"]
+        roleName:
+          type: [string, "null"]
+        access:
+          $ref: "#/components/schemas/Access"
+        maxHoursPerWeek:
+          type: [number, "null"]
+        orbyteId:
+          type: [string, "null"]
+        pin:
+          type: string
+    EmployeeImportInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeImportRow"
+    EmployeeImportResult:
+      type: object
+      required: [created, errors]
+      properties:
+        created:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+    EmployeeDetail:
+      type: object
+      required: [employee, upcomingShifts, leave]
+      properties:
+        employee:
+          $ref: "#/components/schemas/Employee"
+        upcomingShifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shift"
+        leave:
+          type: array
+          items:
+            $ref: "#/components/schemas/Leave"
+
+    # ---------- shifts
+    ShiftStatus:
+      type: string
+      description: >
+        scheduled = person is working it; needs_cover = person is on leave and
+        nobody has taken it yet; covered = person is on leave and someone else
+        took it (see the replacement shift); cancelled.
+      enum: [scheduled, needs_cover, covered, cancelled]
+    ShiftSource:
+      type: string
+      enum: [generated, manual, cover]
+    Shift:
+      type: object
+      required:
+        - id
+        - date
+        - startsAt
+        - endsAt
+        - startTime
+        - endTime
+        - hours
+        - roleId
+        - roleName
+        - employeeId
+        - employeeName
+        - patternId
+        - patternName
+        - status
+        - source
+        - coverCaseId
+        - notes
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        startTime:
+          type: string
+          description: HH:MM branch-local
+        endTime:
+          type: string
+          description: HH:MM branch-local
+        hours:
+          type: number
+        roleId:
+          type: integer
+        roleName:
+          type: string
+        employeeId:
+          type: [integer, "null"]
+        employeeName:
+          type: [string, "null"]
+        patternId:
+          type: [integer, "null"]
+        patternName:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/ShiftStatus"
+        source:
+          $ref: "#/components/schemas/ShiftSource"
+        coverCaseId:
+          type: [integer, "null"]
+          description: Open/filled cover case for this shift, or the case this shift fills
+        notes:
+          type: [string, "null"]
+    ShiftInput:
+      type: object
+      required: [employeeId, roleId, date, startTime, endTime]
+      properties:
+        employeeId:
+          type: integer
+        roleId:
+          type: integer
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        notes:
+          type: [string, "null"]
+        override:
+          type: boolean
+          description: Save even if it breaks a scheduling rule
+
+    # ---------- roster
+    RosterAssignee:
+      type: object
+      required: [shiftId, employeeId, employeeName, status]
+      properties:
+        shiftId:
+          type: integer
+        employeeId:
+          type: [integer, "null"]
+        employeeName:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/ShiftStatus"
+    RosterSlot:
+      type: object
+      required: [patternId, patternName, startTime, endTime, roleId, roleName, required, assigned, shortBy]
+      properties:
+        patternId:
+          type: integer
+        patternName:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        roleId:
+          type: integer
+        roleName:
+          type: string
+        required:
+          type: integer
+        assigned:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterAssignee"
+        shortBy:
+          type: integer
+          description: Required minus people actually working (scheduled shifts)
+    RosterDay:
+      type: object
+      required: [date, weekday, open, slots, otherShifts]
+      properties:
+        date:
+          type: string
+          format: date
+        weekday:
+          type: integer
+          description: 0 = Monday ... 6 = Sunday
+        open:
+          type: boolean
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterSlot"
+        otherShifts:
+          type: array
+          description: Shifts that don't belong to a pattern (manual or cover)
+          items:
+            $ref: "#/components/schemas/Shift"
+    RosterEmployeeHours:
+      type: object
+      required: [employeeId, name, roleName, hours, days, maxHours]
+      properties:
+        employeeId:
+          type: integer
+        name:
+          type: string
+        roleName:
+          type: [string, "null"]
+        hours:
+          type: number
+        days:
+          type: integer
+        maxHours:
+          type: number
+    RosterWeek:
+      type: object
+      required: [weekStart, weekEnd, days, employees, required, filled, gaps]
+      properties:
+        weekStart:
+          type: string
+          format: date
+        weekEnd:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterDay"
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterEmployeeHours"
+        required:
+          type: integer
+        filled:
+          type: integer
+        gaps:
+          type: integer
+    GenerateRosterInput:
+      type: object
+      required: [weekStart]
+      properties:
+        weekStart:
+          type: string
+          format: date
+        replaceExisting:
+          type: boolean
+          description: Remove previously generated (not manual / cover) future shifts in the week first
+    RosterGap:
+      type: object
+      required: [date, patternName, roleName, missing, reason]
+      properties:
+        date:
+          type: string
+          format: date
+        patternName:
+          type: string
+        roleName:
+          type: string
+        missing:
+          type: integer
+        reason:
+          type: string
+    GenerateRosterResult:
+      type: object
+      required: [weekStart, created, removed, gaps, employees]
+      properties:
+        weekStart:
+          type: string
+          format: date
+        created:
+          type: integer
+        removed:
+          type: integer
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterGap"
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterEmployeeHours"
+
+    # ---------- leave
+    LeaveStatus:
+      type: string
+      enum: [pending, approved, rejected]
+    Leave:
+      type: object
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - roleName
+        - leaveType
+        - startDate
+        - endDate
+        - status
+        - source
+        - externalRef
+        - reason
+        - createdAt
+        - decidedAt
+        - affectedShiftCount
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        roleName:
+          type: [string, "null"]
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          $ref: "#/components/schemas/LeaveStatus"
+        source:
+          type: string
+          enum: [manual, import, orbyte]
+        externalRef:
+          type: [string, "null"]
+        reason:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        decidedAt:
+          type: [string, "null"]
+          format: date-time
+        affectedShiftCount:
+          type: integer
+    LeaveInput:
+      type: object
+      required: [employeeId, leaveType, startDate, endDate]
+      properties:
+        employeeId:
+          type: integer
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, approved]
+        reason:
+          type: [string, "null"]
+        externalRef:
+          type: [string, "null"]
+    LeaveResult:
+      type: object
+      required: [leave, coverageCases]
+      properties:
+        leave:
+          $ref: "#/components/schemas/Leave"
+        coverageCases:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageCase"
+    LeaveImportRow:
+      type: object
+      required: [leaveType, startDate, endDate]
+      properties:
+        employeeEmail:
+          type: [string, "null"]
+        orbyteId:
+          type: [string, "null"]
+        leaveType:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        status:
+          type: [string, "null"]
+        externalRef:
+          type: [string, "null"]
+        reason:
+          type: [string, "null"]
+    LeaveImportInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveImportRow"
+    RowError:
+      type: object
+      required: [row, message]
+      properties:
+        row:
+          type: integer
+        message:
+          type: string
+    LeaveImportResult:
+      type: object
+      required: [created, skipped, coverageCasesOpened, errors]
+      properties:
+        created:
+          type: integer
+        skipped:
+          type: integer
+        coverageCasesOpened:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RowError"
+
+    # ---------- coverage
+    CoverageStatus:
+      type: string
+      description: open = nobody asked yet; offered = waiting on replies; filled; cancelled
+      enum: [open, offered, filled, cancelled]
+    OfferStatus:
+      type: string
+      description: >
+        pending = waiting for reply; accepted = got the shift; declined;
+        withdrawn = manager took it back; expired = someone else accepted first
+        or the person is no longer eligible.
+      enum: [pending, accepted, declined, withdrawn, expired]
+    CoverOffer:
+      type: object
+      required: [id, caseId, employee, status, message, createdAt, respondedAt, responseNote]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        employee:
+          $ref: "#/components/schemas/EmployeeRef"
+        status:
+          $ref: "#/components/schemas/OfferStatus"
+        message:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: [string, "null"]
+          format: date-time
+        responseNote:
+          type: [string, "null"]
+    LeaveRef:
+      type: object
+      required: [id, leaveType, startDate, endDate, reason]
+      properties:
+        id:
+          type: integer
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: [string, "null"]
+    CoverageCase:
+      type: object
+      required:
+        - id
+        - status
+        - shift
+        - leave
+        - originalEmployee
+        - replacementEmployee
+        - offers
+        - openedAt
+        - filledAt
+        - urgent
+        - startsInHours
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: "#/components/schemas/CoverageStatus"
+        shift:
+          $ref: "#/components/schemas/Shift"
+        leave:
+          $ref: "#/components/schemas/LeaveRef"
+        originalEmployee:
+          $ref: "#/components/schemas/EmployeeRef"
+        replacementEmployee:
+          oneOf:
+            - $ref: "#/components/schemas/EmployeeRef"
+            - type: "null"
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverOffer"
+        openedAt:
+          type: string
+          format: date-time
+        filledAt:
+          type: [string, "null"]
+          format: date-time
+        urgent:
+          type: boolean
+          description: Starts within 48 hours and not filled
+        startsInHours:
+          type: number
+    Candidate:
+      type: object
+      required:
+        - employee
+        - score
+        - hoursWorkedSoFar
+        - hoursThisWeek
+        - hoursAfter
+        - maxHoursPerWeek
+        - hoursThatDay
+        - maxHoursPerDay
+        - daysThisWeek
+        - maxDaysPerWeek
+        - backToBack
+        - restHoursBefore
+        - restHoursAfter
+        - reasons
+        - warnings
+        - offerStatus
+      properties:
+        employee:
+          $ref: "#/components/schemas/EmployeeRef"
+        score:
+          type: integer
+          description: 0-100, higher is a better fit
+        hoursWorkedSoFar:
+          type: number
+          description: Hours already worked this week (shifts that have ended)
+        hoursThisWeek:
+          type: number
+          description: All hours this week including future assigned shifts
+        hoursAfter:
+          type: number
+          description: hoursThisWeek plus this shift
+        maxHoursPerWeek:
+          type: number
+        hoursThatDay:
+          type: number
+          description: Hours already on the roster that day
+        maxHoursPerDay:
+          type: number
+        daysThisWeek:
+          type: integer
+        maxDaysPerWeek:
+          type: integer
+        backToBack:
+          type: boolean
+        restHoursBefore:
+          type: [number, "null"]
+        restHoursAfter:
+          type: [number, "null"]
+        reasons:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        offerStatus:
+          oneOf:
+            - $ref: "#/components/schemas/OfferStatus"
+            - type: "null"
+    UnavailableCandidate:
+      type: object
+      required: [employee, reasons]
+      properties:
+        employee:
+          $ref: "#/components/schemas/EmployeeRef"
+        reasons:
+          type: array
+          items:
+            type: string
+    CandidateList:
+      type: object
+      required: [eligible, unavailable]
+      properties:
+        eligible:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+        unavailable:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnavailableCandidate"
+    SendOffersInput:
+      type: object
+      required: [employeeIds]
+      properties:
+        employeeIds:
+          type: array
+          items:
+            type: integer
+        message:
+          type: [string, "null"]
+    DeclineOfferInput:
+      type: object
+      properties:
+        note:
+          type: [string, "null"]
+    MyOffer:
+      type: object
+      required:
+        - id
+        - status
+        - message
+        - createdAt
+        - respondedAt
+        - shift
+        - coveringFor
+        - caseStatus
+        - canAccept
+        - blockedReason
+        - hoursThisWeek
+        - hoursAfter
+        - maxHoursPerWeek
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: "#/components/schemas/OfferStatus"
+        message:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: [string, "null"]
+          format: date-time
+        shift:
+          $ref: "#/components/schemas/Shift"
+        coveringFor:
+          type: string
+          description: Name of the person on leave
+        caseStatus:
+          $ref: "#/components/schemas/CoverageStatus"
+        canAccept:
+          type: boolean
+        blockedReason:
+          type: [string, "null"]
+        hoursThisWeek:
+          type: number
+        hoursAfter:
+          type: number
+        maxHoursPerWeek:
+          type: number
+
+    # ---------- notifications / dashboard
+    Notification:
+      type: object
+      required:
+        - id
+        - recipientEmployeeId
+        - recipientName
+        - recipientEmail
+        - audience
+        - kind
+        - subject
+        - body
+        - emailStatus
+        - readAt
+        - caseId
+        - offerId
+        - createdAt
+      properties:
+        id:
+          type: integer
+        recipientEmployeeId:
+          type: [integer, "null"]
+        recipientName:
+          type: string
+        recipientEmail:
+          type: string
+        audience:
+          type: string
+          enum: [offered, replacement, original, team, manager]
+        kind:
+          type: string
+          description: e.g. cover_offer, offer_expired, cover_confirmed, shift_covered, roster_change, offer_declined, offer_accepted
+        subject:
+          type: string
+        body:
+          type: string
+        emailStatus:
+          type: string
+          enum: [queued, sent, failed]
+          description: Email delivery; queued until an email provider is connected
+        readAt:
+          type: [string, "null"]
+          format: date-time
+        caseId:
+          type: [integer, "null"]
+        offerId:
+          type: [integer, "null"]
+        createdAt:
+          type: string
+          format: date-time
+    DashboardSummary:
+      type: object
+      required:
+        - openCases
+        - offeredCases
+        - urgentCases
+        - filledThisWeek
+        - pendingOffers
+        - pendingLeave
+        - onLeaveToday
+        - staffCount
+        - shiftsThisWeek
+        - rosterGapsThisWeek
+      properties:
+        openCases:
+          type: integer
+        offeredCases:
+          type: integer
+        urgentCases:
+          type: integer
+        filledThisWeek:
+          type: integer
+        pendingOffers:
+          type: integer
+        pendingLeave:
+          type: integer
+        onLeaveToday:
+          type: integer
+        staffCount:
+          type: integer
+        shiftsThisWeek:
+          type: integer
+        rosterGapsThisWeek:
+          type: integer
+    Activity:
+      type: object
+      required: [id, kind, message, createdAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

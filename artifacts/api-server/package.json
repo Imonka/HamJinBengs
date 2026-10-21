@@ -1,0 +1,13 @@
+{
+  "name": "@workspace/api-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Python (FastAPI) back end. The pnpm scripts are thin wrappers so the workspace can start it like any other package.",
+  "scripts": {
+    "dev": "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --reload --reload-dir app",
+    "start": "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}",
+    "test": "python -m pytest -q",
+    "init-db": "python -m app.cli init-db",
+    "seed": "python -m app.cli seed"
+  }
+}

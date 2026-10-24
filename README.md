@@ -37,7 +37,7 @@ You can run this project **either on Replit** or **locally on your own machine (
 
 ### Option A: Run on Replit (Recommended for Quick Preview)
 1. Import this repository (or upload the project zip) into **Replit**.
-2. Provision a **Replit PostgreSQL** database (so `DATABASE\\\\\\\\\\\\\\\_URL` is automatically set in your environment).
+2. Provision a **Replit PostgreSQL** database (so `DATABASE_URL` is automatically set in your environment).
 3. Click the **Run** button, or open two Shell tabs:
    * **Backend Shell:**
      ```bash
@@ -66,15 +66,15 @@ Open **SQL Shell (psql)** or **pgAdmin** and run:
 
 
 
-CREATE USER scheduler\\\\\\\\\\\\\\\_user WITH PASSWORD 'pass123456';
+CREATE USER scheduler_user WITH PASSWORD 'pass123456';
 
 
 
-CREATE DATABASE cover\\\\\\\\\\\\\\\_scheduler OWNER scheduler\\\\\\\\\\\\\\\_user;
+CREATE DATABASE cover_scheduler OWNER scheduler_user;
 
 
 
-GRANT ALL PRIVILEGES ON DATABASE cover\\\\\\\\\\\\\\\_scheduler TO scheduler\\\\\\\\\\\\\\\_user;
+GRANT ALL PRIVILEGES ON DATABASE cover_scheduler TO scheduler_user;
 
 
 

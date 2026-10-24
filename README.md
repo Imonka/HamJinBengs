@@ -1,197 +1,286 @@
-# HACKS
-# Project Name
+\# Gantian — Smart Leave \& Shift-Cover Management System
 
-> A one-sentence description of what your project does and who it is for.
 
----
 
-## Team Information
+\## Team Information
 
-| Field                  | Details                                     |
-| ---------------------- | ------------------------------------------- |
-| **Team Name**          | HamJinBengs                                 |
-| **Team Domain**        | Domain 2                                    |
-| **SDG Track 8**        | SDG 8 - DECENT WORK AND ECONOMIC GROWTH     |
-| **Team Leader**        | TAY KYHENN                                  |
-| **University**         | XIAMEN UNIVERSITY MALAYSIA                  |
-| **Number of Members**  | 5                                           |
+\* \*\*Team Name:\*\* HamJinBengs
 
-## Links
+\* \*\*Team Domain:\*\* Domain 2
 
-| Resource          | Link                                           |
-| ----------------- | ---------------------------------------------- |
-| GitHub Repository | https://github.com/your-username/your-project  |
-| Replit Project    | https://replit.com/@your-username/your-project |
-| Live Demo         | https://your-project.replit.app                |
-| RunPod Endpoint   | https://api.runpod.ai/v2/your-endpoint-id      |
-| Slide Deck        | https://example.com/slides                     |
-| Demo Video        | https://example.com/demo-video                 |
+\* \*\*Pitch Video Link:\*\* https://youtu.be/eitBOiF6nOQ
 
----
+\---
 
-## Overview
 
-### Problem
 
-Describe the real-world problem you are solving in 2–4 sentences. Who is affected, and why does it matter?
+\## Overall Project Structure \& Overview
 
-### Solution
 
-Explain how your project uses AI to solve the problem and what makes it valuable.
 
-### Key Features
+\*\*Gantian\*\* is a leave and shift-cover management system. It helps managers plan staff shifts and find replacements when an employee’s approved leave affects an upcoming shift. Staff can view their shifts, request leave, and respond to cover offers.
 
-- **Feature 1** — Short description.
-- **Feature 2** — Short description.
-- **Feature 3** — Short description.
 
-### Tech Stack
 
-| Layer         | Technology                   |
-| ------------- | ---------------------------- |
-| Frontend      | e.g. HTML, React             |
-| Backend       | e.g. Python, Flask / FastAPI |
-| Database      | e.g. PostgreSQL, SQLite      |
-| AI / Compute  | RunPod (GPU)                 |
-| Hosting / Dev | Replit                       |
+\### Main Functions
 
----
+1\. \*\*Sign-in and access control\*\*
 
-## Project Structure
+&#x20;  Employees sign in with their work email and PIN. The system provides different screens and actions for managers and staff.
+
+
+
+2\. \*\*Team and role management\*\*
+
+&#x20;  Managers can manage employee and job-role information, including adding or importing staff.
+
+
+
+3\. \*\*Shift scheduling\*\*
+
+&#x20;  Managers configure shift patterns and scheduling rules, manage shifts, and generate weekly rosters. The system can also identify roster gaps.
+
+
+
+4\. \*\*Leave management\*\*
+
+&#x20;  Staff can submit leave requests through Orbyte eLeave, which managers can import onto the system. Managers can review requests, preview which shifts may need cover, then approve or reject them. When approved leave affects an upcoming shift, the system opens a cover case for it.
+
+
+
+5\. \*\*Shift-cover offers\*\*
+
+&#x20;  Managers can review eligible replacement candidates and send them offers. Staff can accept or decline offers. The first staff member to accept gets the shift; other outstanding offers expire.
+
+
+
+6\. \*\*Dashboard and notifications\*\*
+
+&#x20;  Managers can see cover cases, pending offers, leave requests, and scheduling activity. Staff receive in-app notifications and can view their inbox.
+
+
+
+\---
+
+
+
+\## How to Run the Project
+
+
+
+You can run this project \*\*either on Replit\*\* or \*\*locally on your own machine (Localhost)\*\*.
+
+
+
+\### Option A: Run on Replit (Recommended for Quick Preview)
+
+1\. Import this repository (or upload the project zip) into \*\*Replit\*\*.
+
+2\. Provision a \*\*Replit PostgreSQL\*\* database (so `DATABASE\\\\\\\_URL` is automatically set in your environment).
+
+3\. Click the \*\*Run\*\* button, or open two Shell tabs:
+
+&#x20;  \* \*\*Backend Shell:\*\*
+
+&#x20;    ```bash
+
+&#x20;    cd artifacts/api-server
+
+&#x20;    python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+
+&#x20;    ```
+
+&#x20;  \* \*\*Frontend Shell:\*\*
+
+&#x20;    ```bash
+
+&#x20;    cd artifacts/cover-scheduler
+
+&#x20;    pnpm exec vite --host 0.0.0.0 --port 5173
+
+&#x20;    ```
+
+
+
+\---
+
+
+
+\### Option B: Run on Localhost (Windows / macOS / Linux)
+
+
+
+\#### 1. Prerequisites
+
+Ensure you have the following installed:
+
+\* \*\*Python\*\* 3.11+
+
+\* \*\*Node.js\*\* 20+
+
+\* \*\*PostgreSQL\*\* 14+ (running locally on port `5432`)
+
+
+
+\#### 2. Database Setup (One-Time Only)
+
+Open \*\*SQL Shell (psql)\*\* or \*\*pgAdmin\*\* and run:
+
+```sql
+
+
+
+CREATE USER scheduler\\\\\\\_user WITH PASSWORD 'pass123456';
+
+
+
+CREATE DATABASE cover\\\\\\\_scheduler OWNER scheduler\\\\\\\_user;
+
+
+
+GRANT ALL PRIVILEGES ON DATABASE cover\\\\\\\_scheduler TO scheduler\\\\\\\_user;
+
+
 
 ```
-.
-├── docs/                    # Screenshots, diagrams
-├── runpod/
-│   └── handler.py           # RunPod serverless handler (GPU workload)
-├── src/
-│   ├── main.py              # Application entry point
-│   └── utils.py             # Helper functions
-├── submission/              # Required submission documents
-│   ├── REPLIT PROOF OF USE.pdf
-│   ├── RUNPOD PROOF OF USE.pdf
-│   └── Submission Template SDC Hackathon.pdf
-├── tests/
-│   └── test_utils.py        # Unit tests
-├── .env.example             # Example environment variables
-├── .gitignore
-├── .replit                  # Replit run configuration
-├── LICENSE
-├── requirements.txt         # Python dependencies
-└── README.md
-```
 
-### Architecture
 
-```
-User ──► Replit (App / API) ──► RunPod Endpoint (GPU model)
-                │
-                └──► Response returned to user
-```
 
----
+\#### 3. Install Dependencies (One-Time Only)
 
-## How to Run
+Open a terminal in the \*\*project root folder\*\*:
 
-### Option 1 — Run on Replit (Recommended)
 
-1. Open the [Replit Project](https://replit.com/@your-username/your-project), or import this repository via **Create Repl → Import from GitHub**.
-2. Open the **Secrets** tab (🔒) and add the variables listed in `.env.example`:
-   - `RUNPOD_API_KEY`
-   - `RUNPOD_ENDPOINT_ID`
-3. Click **Run**. Replit uses the `.replit` file to start `python src/main.py`.
 
-### Option 2 — Run Locally
+\*\*Install Backend Dependencies:\*\*
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-username/your-project.git
-cd your-project
 
-# 2. Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
 
-# 3. Install dependencies
-pip install -r requirements.txt
 
-# 4. Configure environment variables
-cp .env.example .env            # then fill in your values
+pip install -r artifacts/api-server/requirements.txt
 
-# 5. Run the app
-python src/main.py
+
+
 ```
 
-### Run Tests
 
-```bash
-python -m unittest discover tests
+
+\*\*Install Frontend Dependencies (Windows PowerShell):\*\*
+
+```powershell
+
+
+
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+
+
+
+npm config delete optional
+
+
+
+npm config delete omit
+
+
+
+npx pnpm@9.15.4 install --force
+
+
+
 ```
 
----
+\*(For macOS/Linux, simply run: `npx pnpm@9.15.4 install --force`)\*
 
-## How We Use Replit *(Required)*
 
-Describe how your team used Replit. For example:
 
-- **Development:** Collaborative coding in a shared Repl using Multiplayer.
-- **Hosting:** The app is deployed with Replit Deployments at the Live Demo link above.
-- **Secrets:** API keys are stored in Replit Secrets, never in the code.
+\#### 4. Start the Servers (Open 2 Terminal Windows)
 
-📄 Proof of use: [`submission/REPLIT PROOF OF USE.pdf`](submission/REPLIT%20PROOF%20OF%20USE.pdf)
 
-## How We Use RunPod *(Required)*
 
-Describe how your team used RunPod. For example:
+\*\*Terminal 1 — Start Backend (Port 8080):\*\*
 
-- **Workload:** Model inference (e.g. text generation, image processing) runs on a RunPod GPU.
-- **Setup:** `runpod/handler.py` is deployed as a **RunPod Serverless Endpoint**.
-- **Integration:** The Replit app sends requests to the endpoint using `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID`.
+\* \*\*Windows (PowerShell):\*\*
 
-Example request:
+&#x20; ```powershell
 
-```bash
-curl -X POST https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/runsync \
-  -H "Authorization: Bearer $RUNPOD_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"input": {"prompt": "Hello"}}'
-```
+&#x20; $env:DATABASE\_URL="postgresql://scheduler\_user:pass123456@localhost:5432/cover\_scheduler"
 
-📄 Proof of use: [`submission/RUNPOD PROOF OF USE.pdf`](submission/RUNPOD%20PROOF%20OF%20USE.pdf)
+&#x20; cd artifacts/api-server
 
----
+&#x20; python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload --reload-dir app
 
-## Challenges & Learnings
+&#x20; ```
 
-- What challenges did you face, and how did you overcome them?
-- What did your team learn?
+\* \*\*macOS / Linux:\*\*
 
-## Future Improvements
+&#x20; ```bash
 
-- [ ] Improvement 1
-- [ ] Improvement 2
+&#x20; export DATABASE\_URL="postgresql://scheduler\_user:pass123456@localhost:5432/cover\_scheduler"
 
-## Team
+&#x20; cd artifacts/api-server
 
-| Name        | Role                | GitHub                                   |
-| ----------- | ------------------- | ---------------------------------------- |
-| Member Name | Team Lead / Backend | [@username](https://github.com/username) |
-| Member Name | Frontend            | [@username](https://github.com/username) |
-| Member Name | AI / RunPod         | [@username](https://github.com/username) |
+&#x20; python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload --reload-dir app
 
----
+&#x20; ```
 
-## Submission Checklist
 
-- [ ] Team name, domain (Domain 1 / Domain 2) and SDG track filled in
-- [ ] Slide deck link added
-- [ ] Demo video link added
-- [ ] Replit used, with proof of use in `submission/`
-- [ ] RunPod used, with proof of use in `submission/`
-- [ ] Submission template completed in `submission/`
-- [ ] "How to Run" steps verified
-- [ ] No API keys or secrets committed to the repository
 
-## License
+\*\*Terminal 2 — Start Frontend (Port 5173):\*\*
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+\* \*\*Windows (PowerShell):\*\*
+
+&#x20; ```powershell
+
+&#x20; cd artifacts/cover-scheduler
+
+&#x20; $env:PORT="5173"
+
+&#x20; $env:BASE\_PATH="/"
+
+&#x20; npx pnpm@9.15.4 exec vite --host 127.0.0.1 --port 5173
+
+&#x20; ```
+
+\* \*\*macOS / Linux:\*\*
+
+&#x20; ```bash
+
+&#x20; cd artifacts/cover-scheduler
+
+&#x20; export PORT="5173"
+
+&#x20; export BASE\_PATH="/"
+
+&#x20; npx pnpm@9.15.4 exec vite --host 127.0.0.1 --port 5173
+
+&#x20; ```
+
+
+
+\#### 5. Access the App \& Demo Accounts
+
+Open your browser and visit \*\*\[http://127.0.0.1:5173](http://127.0.0.1:5173)\*\*
+
+\* \*\*Manager Demo Account:\*\* `farah@mamarich.my` / PIN: `1234`
+
+\* \*\*Staff Demo Account:\*\* `aisyah@mamarich.my` / PIN: `1111`
+
+
+
+\---
+
+
+
+\## How We Used Replit
+
+
+
+We leveraged \*\*Replit\*\* throughout our entire development lifecycle:
+
+1\. \*\*Rapid Prototyping \& Code Generation:\*\* We used Replit to translate our core domain ideas and scheduling rules into a structured full-stack monorepo architecture (FastAPI backend + React/Vite frontend + OpenAPI contract).
+
+2\. \*\*Cloud Visualization \& Live Testing:\*\* By hosting and running the project on Replit, our team could immediately visualize the UI flows (Manager Desk vs. Staff Portal) and test end-to-end user journeys in real time.
+
+3\. \*\*Interactive Debugging:\*\* We utilized Replit's integrated environment, console logs, and database tools to debug API endpoints, refine our shift-cover constraint engine, and validate edge cases smoothly. 
+
